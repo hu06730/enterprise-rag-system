@@ -14,7 +14,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/data/rag.db")
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(BASE_DIR / "data" / "uploads"))
     CACHE_DIR: str = os.getenv("CACHE_DIR", str(BASE_DIR / "data" / "cache"))
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
