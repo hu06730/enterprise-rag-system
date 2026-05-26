@@ -1,29 +1,29 @@
-# Enterprise RAG Backend — Implementation Plan
+# 企业知识库 RAG 后端 — 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给执行代理的说明：** 必需子技能——使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 来按任务逐步执行此计划。步骤使用复选框（`- [ ]`）语法来追踪进度。
 
-**Goal:** Build the complete backend for an enterprise knowledge-base RAG system — zero external services, one command to start.
+**目标：** 构建企业知识库 RAG 系统的完整后端——零外部服务，一条命令启动。
 
-**Architecture:** FastAPI service with layered modules: ingestion pipeline (parse → split → embed → store), hybrid retrieval (BM25 + vector + RRF fusion with intent-aware weights), generation engine (prompt templates + LLM abstraction), all backed by a single SQLite file using sqlite-vec for vector search.
+**架构：** FastAPI 服务采用分层模块架构：数据管道（解析 → 分块 → 嵌入 → 存储），混合检索（BM25 + 向量 + 基于意图感知权重的 RRF 融合），生成引擎（Prompt 模板 + LLM 抽象），全部基于单个 SQLite 文件，使用 sqlite-vec 进行向量搜索。
 
-**Tech Stack:** Python 3.11+, FastAPI, SQLite + sqlite-vec, rank_bm25, diskcache, OpenAI SDK, SentenceTransformers (optional, for semantic chunking only)
+**技术栈：** Python 3.11+，FastAPI，SQLite + sqlite-vec，rank_bm25，diskcache，OpenAI SDK，SentenceTransformers（可选，仅用于语义分块）
 
-**Spec:** `docs/superpowers/specs/2026-05-23-enterprise-rag-design.md`
+**设计文档：** `docs/superpowers/specs/2026-05-23-enterprise-rag-design.md`
 
 ---
 
-### Task 1: Project scaffold and configuration
+### 任务 1：项目脚手架与配置
 
-**Files:**
-- Create: `backend/requirements.txt`
-- Create: `backend/app/__init__.py`
-- Create: `backend/app/config.py`
-- Create: `backend/app/main.py` (minimal)
-- Create: `.env.example`
+**涉及文件：**
+- 新建：`backend/requirements.txt`
+- 新建：`backend/app/__init__.py`
+- 新建：`backend/app/config.py`
+- 新建：`backend/app/main.py`（最小化版本）
+- 新建：`.env.example`
 
-- [ ] **Step 1: Create requirements.txt**
+- [ ] **步骤 1：创建 requirements.txt**
 
-Write `backend/requirements.txt`:
+写入 `backend/requirements.txt`：
 ```
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
@@ -45,7 +45,7 @@ pytest-asyncio==0.25.0
 python-dotenv==1.0.1
 ```
 
-- [ ] **Step 2: Create .env.example**
+- [ ] **步骤 2：创建 .env.example**
 
 ```bash
 # .env.example
@@ -53,7 +53,8 @@ OPENAI_API_KEY=sk-xxx
 OPENAI_BASE_URL=https://api.openai.com/v1
 EMBEDDING_MODEL=text-embedding-3-small
 LLM_MODEL=gpt-4o-mini
-DATABASE_URL=sqlite:///data/rag.db
+# DATABASE_URL 使用绝对路径；参见 config.py 中的默认值
+DATABASE_URL=
 UPLOAD_DIR=data/uploads
 CACHE_DIR=data/cache
 SECRET_KEY=change-me-in-production
@@ -61,9 +62,9 @@ JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=1440
 ```
 
-- [ ] **Step 3: Write config.py**
+- [ ] **步骤 3：编写 config.py**
 
-Write `backend/app/config.py`:
+写入 `backend/app/config.py`：
 ```python
 import os
 from pathlib import Path
@@ -81,7 +82,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/data/rag.db")
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(BASE_DIR / "data" / "uploads"))
     CACHE_DIR: str = os.getenv("CACHE_DIR", str(BASE_DIR / "data" / "cache"))
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
@@ -93,9 +94,9 @@ class Settings:
 settings = Settings()
 ```
 
-- [ ] **Step 4: Write minimal main.py**
+- [ ] **步骤 4：编写最小化 main.py**
 
-Write `backend/app/main.py`:
+写入 `backend/app/main.py`：
 ```python
 from fastapi import FastAPI
 from app.config import settings
@@ -108,28 +109,29 @@ def health():
     return {"status": "ok"}
 ```
 
-- [ ] **Step 5: Create data directories and verify startup**
+- [ ] **步骤 5：创建数据目录并验证启动**
 
-Run: `cd backend && mkdir -p data/uploads data/cache && python -c "from app.main import app; print('OK')"`
-Expected: `OK`
+执行：`cd backend && mkdir -p data/uploads data/cache && python -c "from app.main import app; print('OK')"`
+预期输出：`OK`
 
-- [ ] **Step 6: Verify uvicorn starts**
+- [ ] **步骤 6：验证 uvicorn 能否启动**
 
-Run: `cd backend && timeout 3 uvicorn app.main:app --port 8000 || true`
-Expected: Server starts, then times out. No crash.
+执行：`cd backend && timeout 3 uvicorn app.main:app --port 8000 || true`
+预期结果：服务器启动，然后超时。无崩溃。
 
 ---
 
-### Task 2: Database layer — SQLite connection and schema
+### 任务 2：数据库层 — SQLite 连接与模式
 
-**Files:**
-- Create: `backend/app/db/__init__.py`
-- Create: `backend/app/db/sqlite.py`
-- Create: `backend/app/db/vec_store.py`
+**涉及文件：**
+- 新建：`backend/app/db/__init__.py`
+- 新建：`backend/app/db/sqlite.py`
+- 新建：`backend/app/db/vec_store.py`
+- 修改：`backend/app/main.py`（添加 lifespan 以在启动时初始化数据库）
 
-- [ ] **Step 1: Write db/sqlite.py**
+- [ ] **步骤 1：编写 db/sqlite.py**
 
-Write `backend/app/db/sqlite.py`:
+写入 `backend/app/db/sqlite.py`：
 ```python
 import sqlite3
 import os
@@ -247,9 +249,9 @@ def init_db():
     conn.close()
 ```
 
-- [ ] **Step 2: Write db/vec_store.py**
+- [ ] **步骤 2：编写 db/vec_store.py**
 
-Write `backend/app/db/vec_store.py`:
+写入 `backend/app/db/vec_store.py`：
 ```python
 import sqlite3
 import sqlite_vec
@@ -344,9 +346,16 @@ def search_similar(
     conn.enable_load_extension(False)
 
     vec_json = "[" + ",".join(str(v) for v in query_embedding) + "]"
-    deps = ",".join(f"'{d}'" for d in departments) if departments else ""
 
-    query = """
+    if departments:
+        deps_str = ",".join(f"'{d}'" for d in departments)
+        dept_clause = f"AND (m.department IS NULL OR m.department IN ({deps_str}))"
+    else:
+        dept_clause = ""
+
+    access_placeholders = ",".join("?" for _ in access_levels)
+
+    query = f"""
         SELECT m.id, m.doc_id, m.kb_id, m.chunk_index, m.title, m.text,
                m.department, m.access_level, m.tags,
                vec_distance_cosine(v.embedding, ?) as distance
@@ -354,14 +363,11 @@ def search_similar(
         JOIN chunks_meta m ON v.rowid = m.id
         WHERE m.kb_id = ?
           AND m.access_level IN ({access_placeholders})
-          {department_clause}
+          {dept_clause}
           AND vec_distance_cosine(v.embedding, ?) <= ?
         ORDER BY distance
         LIMIT ?
-    """.format(
-        access_placeholders=",".join("?" for _ in access_levels),
-        department_clause=f"AND (m.department IS NULL OR m.department IN ({deps}))" if deps else "",
-    )
+    """
 
     params = [vec_json, kb_id] + access_levels + [vec_json, 2.0, limit]
     rows = conn.execute(query, params).fetchall()
@@ -369,9 +375,9 @@ def search_similar(
     return [dict(r) for r in rows]
 ```
 
-- [ ] **Step 3: Update main.py to init DB on startup**
+- [ ] **步骤 3：更新 main.py 以在启动时初始化数据库**
 
-Edit `backend/app/main.py`:
+修改 `backend/app/main.py`：
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -394,31 +400,31 @@ def health():
     return {"status": "ok"}
 ```
 
-- [ ] **Step 4: Verify DB init works**
+- [ ] **步骤 4：验证数据库初始化是否正常**
 
-Run: `cd backend && python -c "from app.main import app; print('DB OK')"`
-Expected: `DB OK` (creates `data/rag.db`)
+执行：`cd backend && python -c "from app.main import app; print('DB OK')"`
+预期输出：`DB OK`（创建 `data/rag.db`）
 
-Run: `cd backend && python -c "
+执行：`cd backend && python -c "
 from app.db.sqlite import get_connection
 conn = get_connection()
 tables = conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()
 print([t['name'] for t in tables])
 conn.close()
 "`
-Expected: prints list including `users`, `knowledge_bases`, `chunks_meta`, `chunks_vec`, etc.
+预期输出：打印包含 `users`、`knowledge_bases`、`chunks_meta`、`chunks_vec` 等的列表。
 
 ---
 
-### Task 3: Core interfaces
+### 任务 3：核心接口定义
 
-**Files:**
-- Create: `backend/app/core/__init__.py`
-- Create: `backend/app/core/interfaces.py`
+**涉及文件：**
+- 新建：`backend/app/core/__init__.py`
+- 新建：`backend/app/core/interfaces.py`
 
-- [ ] **Step 1: Write core/interfaces.py**
+- [ ] **步骤 1：编写 core/interfaces.py**
 
-Write `backend/app/core/interfaces.py`:
+写入 `backend/app/core/interfaces.py`：
 ```python
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -427,7 +433,7 @@ from collections.abc import AsyncIterator
 
 @dataclass
 class Message:
-    role: str  # "user" | "assistant" | "system"
+    role: str
     content: str
 
 
@@ -449,7 +455,7 @@ class Chunk:
     department: str | None = None
     access_level: str = "internal"
     score: float = 0.0
-    source: str = ""  # for retrieval: "vector" | "keyword"
+    source: str = ""
 
 
 @dataclass
@@ -506,24 +512,24 @@ class BaseParser(ABC):
     def parse(self, file_path: str) -> ParsedDocument: ...
 ```
 
-- [ ] **Step 2: Verify imports**
+- [ ] **步骤 2：验证导入**
 
-Run: `cd backend && python -c "from app.core.interfaces import BaseRetriever, BaseLLM, BaseEmbedder, BaseParser, BaseSplitter; print('OK')"`
-Expected: `OK`
+执行：`cd backend && python -c "from app.core.interfaces import BaseRetriever, BaseLLM, BaseEmbedder, BaseParser, BaseSplitter; print('OK')"`
+预期输出：`OK`
 
 ---
 
-### Task 4: Document parsers
+### 任务 4：文档解析器
 
-**Files:**
-- Create: `backend/app/ingestion/__init__.py`
-- Create: `backend/app/ingestion/parsers.py`
-- Create: `backend/tests/test_ingestion/__init__.py`
-- Create: `backend/tests/test_ingestion/test_parsers.py`
+**涉及文件：**
+- 新建：`backend/app/ingestion/__init__.py`
+- 新建：`backend/app/ingestion/parsers.py`
+- 新建：`backend/tests/test_ingestion/__init__.py`
+- 新建：`backend/tests/test_ingestion/test_parsers.py`
 
-- [ ] **Step 1: Write failing test for TXT parser**
+- [ ] **步骤 1：编写 TXT 解析器的失败测试**
 
-Write `backend/tests/test_ingestion/test_parsers.py`:
+写入 `backend/tests/test_ingestion/test_parsers.py`：
 ```python
 import pytest
 from pathlib import Path
@@ -543,14 +549,14 @@ def test_txt_parser_returns_parsed_document():
     assert result.title == "sample.txt"
 ```
 
-- [ ] **Step 2: Run test — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_txt_parser_returns_parsed_document -v`
-Expected: FAIL — `ModuleNotFoundError` or `ImportError`
+执行：`cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_txt_parser_returns_parsed_document -v`
+预期结果：FAIL — `ModuleNotFoundError` 或 `ImportError`
 
-- [ ] **Step 3: Implement parsers**
+- [ ] **步骤 3：实现解析器**
 
-Write `backend/app/ingestion/parsers.py`:
+写入 `backend/app/ingestion/parsers.py`：
 ```python
 import os
 from pathlib import Path
@@ -624,14 +630,14 @@ def get_parser(file_path: str) -> BaseParser:
     return parser_cls()
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [ ] **步骤 4：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_txt_parser_returns_parsed_document -v`
-Expected: PASS
+执行：`cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_txt_parser_returns_parsed_document -v`
+预期结果：PASS
 
-- [ ] **Step 5: Add MD parser test**
+- [ ] **步骤 5：添加 MD 解析器测试**
 
-Append to `backend/tests/test_ingestion/test_parsers.py`:
+追加到 `backend/tests/test_ingestion/test_parsers.py`：
 ```python
 def test_md_parser():
     from app.ingestion.parsers import MdParser
@@ -642,12 +648,12 @@ def test_md_parser():
     assert result.metadata["format"] == "markdown"
 ```
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_md_parser -v`
-Expected: PASS
+执行：`cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_md_parser -v`
+预期结果：PASS
 
-- [ ] **Step 6: Add get_parser test**
+- [ ] **步骤 6：添加 get_parser 测试**
 
-Append to `backend/tests/test_ingestion/test_parsers.py`:
+追加到 `backend/tests/test_ingestion/test_parsers.py`：
 ```python
 def test_get_parser_returns_correct_type():
     from app.ingestion.parsers import get_parser, TxtParser, PdfParser, WordParser, MdParser
@@ -664,20 +670,20 @@ def test_get_parser_raises_for_unknown():
         get_parser("a.xyz")
 ```
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_get_parser_returns_correct_type tests/test_ingestion/test_parsers.py::test_get_parser_raises_for_unknown -v`
-Expected: both PASS
+执行：`cd backend && python -m pytest tests/test_ingestion/test_parsers.py::test_get_parser_returns_correct_type tests/test_ingestion/test_parsers.py::test_get_parser_raises_for_unknown -v`
+预期结果：两个都 PASS
 
 ---
 
-### Task 5: Chunk splitters
+### 任务 5：分块器
 
-**Files:**
-- Create: `backend/app/ingestion/splitter.py`
-- Create: `backend/tests/test_ingestion/test_splitter.py`
+**涉及文件：**
+- 新建：`backend/app/ingestion/splitter.py`
+- 新建：`backend/tests/test_ingestion/test_splitter.py`
 
-- [ ] **Step 1: Write failing test for recursive splitter**
+- [ ] **步骤 1：编写递归分块器的失败测试**
 
-Write `backend/tests/test_ingestion/test_splitter.py`:
+写入 `backend/tests/test_ingestion/test_splitter.py`：
 ```python
 def test_recursive_splitter_chunks_by_separators():
     from app.ingestion.splitter import RecursiveSplitter
@@ -688,14 +694,14 @@ def test_recursive_splitter_chunks_by_separators():
     assert all(len(c) <= 50 for c in chunks)
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_splitter.py::test_recursive_splitter_chunks_by_separators -v`
-Expected: FAIL
+执行：`cd backend && python -m pytest tests/test_ingestion/test_splitter.py::test_recursive_splitter_chunks_by_separators -v`
+预期结果：FAIL
 
-- [ ] **Step 3: Implement splitters**
+- [ ] **步骤 3：实现分块器**
 
-Write `backend/app/ingestion/splitter.py`:
+写入 `backend/app/ingestion/splitter.py`：
 ```python
 import re
 from app.core.interfaces import BaseSplitter
@@ -714,18 +720,14 @@ class RecursiveSplitter(BaseSplitter):
     def _split_text(self, text: str, separators: list[str]) -> list[str]:
         if not text.strip():
             return []
-
         sep = separators[0]
         remaining_seps = separators[1:]
-
         if sep == "":
             return self._split_by_length(text)
-
         if sep in text:
             parts = text.split(sep)
         else:
             return self._split_text(text, remaining_seps)
-
         chunks = []
         current = ""
         for part in parts:
@@ -765,13 +767,9 @@ class MarkdownSplitter(BaseSplitter):
     def split(self, text: str, **kwargs) -> list[str]:
         chunks = []
         sections = re.split(r'(?=^#{1,3} )', text, flags=re.MULTILINE)
-        current_heading = ""
         for section in sections:
             if not section.strip():
                 continue
-            heading_match = re.match(r'^(#{1,3} .+)', section, re.MULTILINE)
-            if heading_match:
-                current_heading = heading_match.group(1).strip()
             content = section.strip()
             if len(content) <= self.chunk_size:
                 chunks.append(content)
@@ -814,7 +812,6 @@ class SemanticSplitter(BaseSplitter):
         sentences = self._split_sentences(text)
         if len(sentences) <= 1:
             return [text] if text.strip() else []
-
         embeddings = self.model.encode(sentences)
         import numpy as np
         similarities = []
@@ -823,13 +820,11 @@ class SemanticSplitter(BaseSplitter):
                 np.linalg.norm(embeddings[i]) * np.linalg.norm(embeddings[i + 1]) + 1e-8
             )
             similarities.append(float(sim))
-
         split_points = [0]
         for i, sim in enumerate(similarities):
             if sim < self.similarity_threshold:
                 split_points.append(i + 1)
         split_points.append(len(sentences))
-
         chunks = []
         for i in range(len(split_points) - 1):
             chunk = "".join(sentences[split_points[i]:split_points[i + 1]])
@@ -857,14 +852,14 @@ def get_splitter(strategy: str, **kwargs) -> BaseSplitter:
     return cls(**kwargs)
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [ ] **步骤 4：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_splitter.py::test_recursive_splitter_chunks_by_separators -v`
-Expected: PASS
+执行：`cd backend && python -m pytest tests/test_ingestion/test_splitter.py::test_recursive_splitter_chunks_by_separators -v`
+预期结果：PASS
 
-- [ ] **Step 5: Add markdown splitter test**
+- [ ] **步骤 5：添加 Markdown 分块器测试**
 
-Append to `backend/tests/test_ingestion/test_splitter.py`:
+追加到 `backend/tests/test_ingestion/test_splitter.py`：
 ```python
 def test_markdown_splitter_preserves_headings():
     from app.ingestion.splitter import MarkdownSplitter
@@ -882,20 +877,20 @@ def test_get_splitter_raises_for_unknown():
         get_splitter("nonexistent")
 ```
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_splitter.py -v`
-Expected: 3 PASS
+执行：`cd backend && python -m pytest tests/test_ingestion/test_splitter.py -v`
+预期结果：3 个 PASS
 
 ---
 
-### Task 6: Embedder
+### 任务 6：嵌入服务
 
-**Files:**
-- Create: `backend/app/ingestion/embedder.py`
-- Create: `backend/tests/test_ingestion/test_embedder.py`
+**涉及文件：**
+- 新建：`backend/app/ingestion/embedder.py`
+- 新建：`backend/tests/test_ingestion/test_embedder.py`
 
-- [ ] **Step 1: Write failing test**
+- [ ] **步骤 1：编写失败测试**
 
-Write `backend/tests/test_ingestion/test_embedder.py`:
+写入 `backend/tests/test_ingestion/test_embedder.py`：
 ```python
 import pytest
 
@@ -917,14 +912,14 @@ async def test_openai_embedder_single_query():
     assert len(vec) == 1536
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_embedder.py -v`
-Expected: FAIL
+执行：`cd backend && python -m pytest tests/test_ingestion/test_embedder.py -v`
+预期结果：FAIL
 
-- [ ] **Step 3: Implement embedder**
+- [ ] **步骤 3：实现嵌入服务**
 
-Write `backend/app/ingestion/embedder.py`:
+写入 `backend/app/ingestion/embedder.py`：
 ```python
 from openai import AsyncOpenAI
 from app.core.interfaces import BaseEmbedder
@@ -948,22 +943,22 @@ class OpenAIEmbedder(BaseEmbedder):
         return results[0]
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [ ] **步骤 4：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_embedder.py -v`
-Expected: 2 PASS (requires OPENAI_API_KEY in .env)
+执行：`cd backend && python -m pytest tests/test_ingestion/test_embedder.py -v`
+预期结果：2 个 PASS（需要在 .env 中配置 OPENAI_API_KEY）
 
 ---
 
-### Task 7: Ingestion pipeline
+### 任务 7：数据管道编排
 
-**Files:**
-- Create: `backend/app/ingestion/pipeline.py`
-- Create: `backend/tests/test_ingestion/test_pipeline.py`
+**涉及文件：**
+- 新建：`backend/app/ingestion/pipeline.py`
+- 新建：`backend/tests/test_ingestion/test_pipeline.py`
 
-- [ ] **Step 1: Write failing test**
+- [ ] **步骤 1：编写失败测试**
 
-Write `backend/tests/test_ingestion/test_pipeline.py`:
+写入 `backend/tests/test_ingestion/test_pipeline.py`：
 ```python
 import pytest
 from pathlib import Path
@@ -978,7 +973,6 @@ async def test_pipeline_processes_txt_and_stores_chunks():
     init_db()
     init_vec()
 
-    # Create a test knowledge base
     conn = get_connection()
     conn.execute(
         "INSERT INTO knowledge_bases (id, name, kb_type) VALUES (1, 'test', 'employee')"
@@ -993,28 +987,26 @@ async def test_pipeline_processes_txt_and_stores_chunks():
     conn.commit()
     conn.close()
 
-    # Write sample file
     sample = Path(__file__).parent / "fixtures" / "ingest_sample.txt"
     sample.parent.mkdir(parents=True, exist_ok=True)
     sample.write_text("This is test content for the ingestion pipeline.\nIt has two sentences.", encoding="utf-8")
 
     await run_ingestion(doc_id=1)
 
-    # Verify chunks exist
     conn = get_connection()
     count = conn.execute("SELECT COUNT(*) FROM chunks_meta WHERE doc_id=1").fetchone()[0]
     conn.close()
     assert count >= 1
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_pipeline.py -v`
-Expected: FAIL
+执行：`cd backend && python -m pytest tests/test_ingestion/test_pipeline.py -v`
+预期结果：FAIL
 
-- [ ] **Step 3: Implement pipeline**
+- [ ] **步骤 3：实现管道**
 
-Write `backend/app/ingestion/pipeline.py`:
+写入 `backend/app/ingestion/pipeline.py`：
 ```python
 import json
 from app.db.sqlite import get_connection
@@ -1071,39 +1063,35 @@ async def run_ingestion(doc_id: int):
             )
 
         conn = get_connection()
-        conn.execute(
-            "UPDATE documents SET status='completed' WHERE id=?", (doc_id,)
-        )
+        conn.execute("UPDATE documents SET status='completed' WHERE id=?", (doc_id,))
         conn.commit()
         conn.close()
     except Exception as e:
         conn = get_connection()
-        conn.execute(
-            "UPDATE documents SET status='failed' WHERE id=?", (doc_id,)
-        )
+        conn.execute("UPDATE documents SET status='failed' WHERE id=?", (doc_id,))
         conn.commit()
         conn.close()
         raise e
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [ ] **步骤 4：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_ingestion/test_pipeline.py::test_pipeline_processes_txt_and_stores_chunks -v`
-Expected: PASS (requires OPENAI_API_KEY)
+执行：`cd backend && python -m pytest tests/test_ingestion/test_pipeline.py::test_pipeline_processes_txt_and_stores_chunks -v`
+预期结果：PASS（需要 OPENAI_API_KEY）
 
 ---
 
-### Task 8: LLM adapters
+### 任务 8：LLM 适配器
 
-**Files:**
-- Create: `backend/app/llm/__init__.py`
-- Create: `backend/app/llm/base.py`
-- Create: `backend/app/llm/openai_llm.py`
-- Create: `backend/tests/test_llm.py`
+**涉及文件：**
+- 新建：`backend/app/llm/__init__.py`
+- 新建：`backend/app/llm/base.py`
+- 新建：`backend/app/llm/openai_llm.py`
+- 新建：`backend/tests/test_llm.py`
 
-- [ ] **Step 1: Write base LLM**
+- [ ] **步骤 1：编写 LLM 基类**
 
-Write `backend/app/llm/base.py`:
+写入 `backend/app/llm/base.py`：
 ```python
 from app.core.interfaces import BaseLLM as BaseLLMInterface
 from app.core.interfaces import Message, GenerationResult
@@ -1111,9 +1099,9 @@ from app.core.interfaces import Message, GenerationResult
 __all__ = ["BaseLLMInterface", "Message", "GenerationResult"]
 ```
 
-- [ ] **Step 2: Write OpenAI LLM adapter**
+- [ ] **步骤 2：编写 OpenAI LLM 适配器**
 
-Write `backend/app/llm/openai_llm.py`:
+写入 `backend/app/llm/openai_llm.py`：
 ```python
 from collections.abc import AsyncIterator
 from openai import AsyncOpenAI
@@ -1160,56 +1148,9 @@ class OpenAILLM(BaseLLM):
                 yield delta.content
 ```
 
-- [ ] **Step 3: Write Claude LLM adapter**
+- [ ] **步骤 3：编写测试**
 
-Write `backend/app/llm/claude_llm.py`:
-```python
-from collections.abc import AsyncIterator
-from openai import AsyncOpenAI
-from app.core.interfaces import BaseLLM, Message, GenerationResult
-from app.config import settings
-
-
-class ClaudeLLM(BaseLLM):
-    """Uses OpenAI-compatible Anthropic API passthrough, or set OPENAI_BASE_URL accordingly."""
-
-    def __init__(self, model: str = "claude-sonnet-4-6"):
-        self.model = model
-        self.client = AsyncOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL,
-        )
-
-    async def generate(self, messages: list[Message], **kwargs) -> GenerationResult:
-        resp = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": m.role, "content": m.content} for m in messages],
-            temperature=kwargs.get("temperature", 0.3),
-            max_tokens=kwargs.get("max_tokens", 2048),
-        )
-        choice = resp.choices[0]
-        return GenerationResult(
-            content=choice.message.content or "",
-            model=resp.model,
-        )
-
-    async def generate_stream(self, messages: list[Message]) -> AsyncIterator[str]:
-        stream = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": m.role, "content": m.content} for m in messages],
-            stream=True,
-            temperature=0.3,
-            max_tokens=2048,
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta
-            if delta.content:
-                yield delta.content
-```
-
-- [ ] **Step 4: Write test**
-
-Write `backend/tests/test_llm.py`:
+写入 `backend/tests/test_llm.py`：
 ```python
 import pytest
 
@@ -1235,20 +1176,20 @@ async def test_openai_llm_stream():
     assert "".join(chunks).strip() != ""
 ```
 
-Run: `cd backend && python -m pytest tests/test_llm.py -v`
-Expected: 2 PASS
+执行：`cd backend && python -m pytest tests/test_llm.py -v`
+预期结果：2 个 PASS
 
 ---
 
-### Task 9: Query intent classifier
+### 任务 9：查询意图分类器
 
-**Files:**
-- Create: `backend/app/core/intent.py`
-- Create: `backend/tests/test_intent.py`
+**涉及文件：**
+- 新建：`backend/app/core/intent.py`
+- 新建：`backend/tests/test_intent.py`
 
-- [ ] **Step 1: Write failing test**
+- [ ] **步骤 1：编写失败测试**
 
-Write `backend/tests/test_intent.py`:
+写入 `backend/tests/test_intent.py`：
 ```python
 def test_intent_classifier_factual_lookup():
     from app.core.intent import classify_intent
@@ -1272,18 +1213,17 @@ def test_intent_classifier_default():
     assert result["bm25_weight"] == 0.5
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_intent.py -v`
-Expected: FAIL
+执行：`cd backend && python -m pytest tests/test_intent.py -v`
+预期结果：FAIL
 
-- [ ] **Step 3: Implement intent classifier**
+- [ ] **步骤 3：实现意图分类器**
 
-Write `backend/app/core/intent.py`:
+写入 `backend/app/core/intent.py`：
 ```python
 from app.db.sqlite import get_connection
 
-# Default rules — used as fallback if DB has no rules
 DEFAULT_RULES = [
     {
         "intent_name": "factual_lookup",
@@ -1340,14 +1280,14 @@ def classify_intent(query: str) -> dict:
     return {"intent": "default", "vector_weight": 0.5, "bm25_weight": 0.5}
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [ ] **步骤 4：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_intent.py -v`
-Expected: 3 PASS
+执行：`cd backend && python -m pytest tests/test_intent.py -v`
+预期结果：3 个 PASS
 
-- [ ] **Step 5: Seed default intent rules into DB**
+- [ ] **步骤 5：种子数据 — 默认意图规则入库**
 
-Write `backend/app/db/seed.py`:
+写入 `backend/app/db/seed.py`：
 ```python
 from app.db.sqlite import get_connection
 from app.core.intent import DEFAULT_RULES
@@ -1366,26 +1306,26 @@ def seed_intent_rules():
     conn.close()
 ```
 
-Update `backend/app/main.py` to call seed:
+更新 `backend/app/main.py` 调用种子数据：
 ```python
 from app.db.seed import seed_intent_rules
 
-# inside lifespan, after init_db() and init_vec():
+# 在 lifespan 中，init_db() 和 init_vec() 之后：
 seed_intent_rules()
 ```
 
 ---
 
-### Task 10: Retrieval engine (vector + BM25 + hybrid + RRF)
+### 任务 10：检索引擎（向量 + BM25 + 混合检索 + RRF）
 
-**Files:**
-- Create: `backend/app/core/retriever.py`
-- Create: `backend/tests/test_retrieval/__init__.py`
-- Create: `backend/tests/test_retrieval/test_retriever.py`
+**涉及文件：**
+- 新建：`backend/app/core/retriever.py`
+- 新建：`backend/tests/test_retrieval/__init__.py`
+- 新建：`backend/tests/test_retrieval/test_retriever.py`
 
-- [ ] **Step 1: Write test for vector retrieval**
+- [ ] **步骤 1：编写检索测试**
 
-Write `backend/tests/test_retrieval/test_retriever.py`:
+写入 `backend/tests/test_retrieval/test_retriever.py`：
 ```python
 import pytest
 from app.core.interfaces import RetrievalContext
@@ -1399,11 +1339,7 @@ async def test_vector_retriever_returns_chunks():
     embedder = OpenAIEmbedder()
     retriever = VectorRetriever(embedder=embedder)
 
-    ctx = RetrievalContext(
-        kb_id=1,
-        top_k=5,
-        access_levels=["public", "internal"],
-    )
+    ctx = RetrievalContext(kb_id=1, top_k=5, access_levels=["public", "internal"])
     results = await retriever.retrieve("test query", ctx)
     assert isinstance(results, list)
 
@@ -1426,25 +1362,20 @@ async def test_hybrid_retriever_merges_results():
     embedder = OpenAIEmbedder()
     retriever = HybridRetriever(embedder=embedder)
 
-    ctx = RetrievalContext(
-        kb_id=1,
-        top_k=10,
-        access_levels=["public", "internal"],
-        retrieval_mode="hybrid",
-    )
+    ctx = RetrievalContext(kb_id=1, top_k=10, access_levels=["public", "internal"], retrieval_mode="hybrid")
     results = await retriever.retrieve("test query", ctx)
     assert isinstance(results, list)
     assert all(r.score >= 0 for r in results)
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_retrieval/test_retriever.py -v`
-Expected: FAIL
+执行：`cd backend && python -m pytest tests/test_retrieval/test_retriever.py -v`
+预期结果：FAIL
 
-- [ ] **Step 3: Implement retrievers**
+- [ ] **步骤 3：实现检索引擎**
 
-Write `backend/app/core/retriever.py`:
+写入 `backend/app/core/retriever.py`：
 ```python
 from app.core.interfaces import BaseRetriever, Chunk, RetrievalContext
 from app.db.vec_store import search_similar
@@ -1528,7 +1459,7 @@ class HybridRetriever(BaseRetriever):
     def __init__(self, embedder):
         self.vector = VectorRetriever(embedder)
         self.bm25 = BM25Retriever()
-        self.k = 60  # RRF constant
+        self.k = 60
 
     async def retrieve(self, query: str, ctx: RetrievalContext) -> list[Chunk]:
         if ctx.retrieval_mode == "vector":
@@ -1561,27 +1492,27 @@ class HybridRetriever(BaseRetriever):
         return results
 ```
 
-- [ ] **Step 4: Install jieba if not present**
+- [ ] **步骤 4：安装 jieba（如未安装）**
 
-Run: `cd backend && pip install jieba`
+执行：`cd backend && pip install jieba`
 
-- [ ] **Step 5: Run tests — expect PASS**
+- [ ] **步骤 5：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_retrieval/test_retriever.py -v`
-Expected: 3 PASS
+执行：`cd backend && python -m pytest tests/test_retrieval/test_retriever.py -v`
+预期结果：3 个 PASS
 
 ---
 
-### Task 11: Generation engine
+### 任务 11：生成引擎
 
-**Files:**
-- Create: `backend/app/core/generator.py`
-- Create: `backend/tests/test_generation/__init__.py`
-- Create: `backend/tests/test_generation/test_generator.py`
+**涉及文件：**
+- 新建：`backend/app/core/generator.py`
+- 新建：`backend/tests/test_generation/__init__.py`
+- 新建：`backend/tests/test_generation/test_generator.py`
 
-- [ ] **Step 1: Write test**
+- [ ] **步骤 1：编写测试**
 
-Write `backend/tests/test_generation/test_generator.py`:
+写入 `backend/tests/test_generation/test_generator.py`：
 ```python
 import pytest
 from app.core.interfaces import Chunk, RetrievalContext
@@ -1609,14 +1540,14 @@ async def test_generator_returns_answer_with_sources():
     assert result["trace_id"] is not None
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **步骤 2：运行测试 — 预期失败**
 
-Run: `cd backend && python -m pytest tests/test_generation/test_generator.py -v`
-Expected: FAIL
+执行：`cd backend && python -m pytest tests/test_generation/test_generator.py -v`
+预期结果：FAIL
 
-- [ ] **Step 3: Implement generator**
+- [ ] **步骤 3：实现生成引擎**
 
-Write `backend/app/core/generator.py`:
+写入 `backend/app/core/generator.py`：
 ```python
 import json
 import uuid
@@ -1679,10 +1610,14 @@ class Generator:
 
         for c in sorted_chunks:
             source_text = f"[来源: {c.title}]\n{c.text}"
-            if total_chars + len(source_text) > max_tokens * 3:  # rough char estimate
+            if total_chars + len(source_text) > max_tokens * 3:
                 break
             context_parts.append(source_text)
-            sources.append({"doc_title": c.title, "chunk_text": c.text[:200], "score": round(c.score, 4)})
+            sources.append({
+                "doc_title": c.title,
+                "chunk_text": c.text[:200],
+                "score": round(c.score, 4),
+            })
             total_chars += len(source_text)
 
         return "\n\n---\n\n".join(context_parts), sources
@@ -1692,11 +1627,9 @@ class Generator:
         template = self._load_prompt_template(ctx.kb_id, ctx.kb_type)
         prompt = template.format(context=context, query=query)
 
-        result = await self.llm.generate([
-            Message(role="user", content=prompt),
-        ])
-
+        result = await self.llm.generate([Message(role="user", content=prompt)])
         trace_id = str(uuid.uuid4())[:8]
+
         return {
             "answer": result.content,
             "sources": sources,
@@ -1722,23 +1655,23 @@ class Generator:
         return round(min(top_score * 10, 1.0), 2)
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [ ] **步骤 4：运行测试 — 预期通过**
 
-Run: `cd backend && python -m pytest tests/test_generation/test_generator.py -v`
-Expected: PASS
+执行：`cd backend && python -m pytest tests/test_generation/test_generator.py -v`
+预期结果：PASS
 
 ---
 
-### Task 12: Auth — JWT and permissions
+### 任务 12：认证模块 — JWT 与权限
 
-**Files:**
-- Create: `backend/app/auth/__init__.py`
-- Create: `backend/app/auth/jwt.py`
-- Create: `backend/app/auth/permissions.py`
+**涉及文件：**
+- 新建：`backend/app/auth/__init__.py`
+- 新建：`backend/app/auth/jwt.py`
+- 新建：`backend/app/auth/permissions.py`
 
-- [ ] **Step 1: Write JWT module**
+- [ ] **步骤 1：编写 JWT 模块**
 
-Write `backend/app/auth/jwt.py`:
+写入 `backend/app/auth/jwt.py`：
 ```python
 from datetime import datetime, timedelta, timezone
 from jose import jwt
@@ -1769,9 +1702,9 @@ def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 ```
 
-- [ ] **Step 2: Write permissions module**
+- [ ] **步骤 2：编写权限模块**
 
-Write `backend/app/auth/permissions.py`:
+写入 `backend/app/auth/permissions.py`：
 ```python
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -1813,15 +1746,15 @@ def require_role(*roles: str):
 
 ---
 
-### Task 13: API routes — Auth
+### 任务 13：API 路由 — 认证端点
 
-**Files:**
-- Create: `backend/app/api/__init__.py`
-- Create: `backend/app/api/auth.py`
+**涉及文件：**
+- 新建：`backend/app/api/__init__.py`
+- 新建：`backend/app/api/auth.py`
 
-- [ ] **Step 1: Write auth routes**
+- [ ] **步骤 1：编写认证路由**
 
-Write `backend/app/api/auth.py`:
+写入 `backend/app/api/auth.py`：
 ```python
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -1885,14 +1818,14 @@ def me(user: dict = Depends(get_current_user)):
 
 ---
 
-### Task 14: API routes — Knowledge Bases
+### 任务 14：API 路由 — 知识库 CRUD
 
-**Files:**
-- Create: `backend/app/api/knowledge_bases.py`
+**涉及文件：**
+- 新建：`backend/app/api/knowledge_bases.py`
 
-- [ ] **Step 1: Write KB routes**
+- [ ] **步骤 1：编写知识库路由**
 
-Write `backend/app/api/knowledge_bases.py`:
+写入 `backend/app/api/knowledge_bases.py`：
 ```python
 import json
 from fastapi import APIRouter, Depends, HTTPException
@@ -1991,14 +1924,14 @@ def delete_kb(kb_id: int, user: dict = Depends(require_role("admin"))):
 
 ---
 
-### Task 15: API routes — Documents
+### 任务 15：API 路由 — 文档上传与管理
 
-**Files:**
-- Create: `backend/app/api/documents.py`
+**涉及文件：**
+- 新建：`backend/app/api/documents.py`
 
-- [ ] **Step 1: Write documents routes**
+- [ ] **步骤 1：编写文档路由**
 
-Write `backend/app/api/documents.py`:
+写入 `backend/app/api/documents.py`：
 ```python
 import os
 import uuid
@@ -2106,14 +2039,14 @@ async def reprocess(doc_id: int, background_tasks: BackgroundTasks, user: dict =
 
 ---
 
-### Task 16: API routes — Chat
+### 任务 16：API 路由 — 对话与反馈
 
-**Files:**
-- Create: `backend/app/api/chat.py`
+**涉及文件：**
+- 新建：`backend/app/api/chat.py`
 
-- [ ] **Step 1: Write chat routes**
+- [ ] **步骤 1：编写对话路由**
 
-Write `backend/app/api/chat.py`:
+写入 `backend/app/api/chat.py`：
 ```python
 import json
 from fastapi import APIRouter, Depends, HTTPException
@@ -2139,13 +2072,13 @@ generator = Generator(llm=llm)
 class ChatRequest(BaseModel):
     kb_id: int
     query: str
-    history: list[dict] = []  # [{"role": "user", "content": "..."}, ...]
+    history: list[dict] = []
     stream: bool = False
 
 
 class FeedbackRequest(BaseModel):
     trace_id: str
-    feedback: int  # 1=up, -1=down
+    feedback: int
     feedback_text: str = ""
 
 
@@ -2202,10 +2135,8 @@ async def ask_stream(req: ChatRequest, user: dict = Depends(get_current_user)):
 
     intent = classify_intent(req.query)
     ctx = RetrievalContext(
-        kb_id=req.kb_id,
-        kb_type=kb["kb_type"],
-        user_departments=user["departments"],
-        user_role=user["role"],
+        kb_id=req.kb_id, kb_type=kb["kb_type"],
+        user_departments=user["departments"], user_role=user["role"],
         access_levels=["public", "internal", "restricted"],
         top_k=config["top_k"] if config else 10,
         retrieval_mode=config["retrieval_mode"] if config else "hybrid",
@@ -2236,16 +2167,16 @@ def submit_feedback(req: FeedbackRequest, user: dict = Depends(get_current_user)
 
 ---
 
-### Task 17: API routes — Audit, Evaluation, Admin
+### 任务 17：API 路由 — 审计、评估、管理
 
-**Files:**
-- Create: `backend/app/api/audit.py`
-- Create: `backend/app/api/evaluation.py`
-- Create: `backend/app/api/admin.py`
+**涉及文件：**
+- 新建：`backend/app/api/audit.py`
+- 新建：`backend/app/api/evaluation.py`
+- 新建：`backend/app/api/admin.py`
 
-- [ ] **Step 1: Write audit routes**
+- [ ] **步骤 1：编写审计路由**
 
-Write `backend/app/api/audit.py`:
+写入 `backend/app/api/audit.py`：
 ```python
 from fastapi import APIRouter, Depends, Query
 from app.auth.permissions import get_current_user, require_role
@@ -2289,9 +2220,9 @@ def get_log(log_id: int, user: dict = Depends(require_role("admin", "editor"))):
     return {"code": 0, "data": dict(row), "message": "ok"}
 ```
 
-- [ ] **Step 2: Write evaluation routes**
+- [ ] **步骤 2：编写评估路由**
 
-Write `backend/app/api/evaluation.py`:
+写入 `backend/app/api/evaluation.py`：
 ```python
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -2342,9 +2273,9 @@ def get_report(kb_id: int, user: dict = Depends(get_current_user)):
     return {"code": 0, "data": {"message": "Run POST /run/{kb_id} to generate"}, "message": "ok"}
 ```
 
-- [ ] **Step 3: Write admin routes**
+- [ ] **步骤 3：编写管理路由**
 
-Write `backend/app/api/admin.py`:
+写入 `backend/app/api/admin.py`：
 ```python
 import json
 from fastapi import APIRouter, Depends, HTTPException
@@ -2412,17 +2343,17 @@ def get_stats(user: dict = Depends(require_role("admin", "editor"))):
 
 ---
 
-### Task 18: Evaluation engine
+### 任务 18：评估引擎
 
-**Files:**
-- Create: `backend/app/evaluation/__init__.py`
-- Create: `backend/app/evaluation/evaluator.py`
-- Create: `backend/app/evaluation/metrics.py`
-- Create: `backend/app/evaluation/llm_judge.py`
+**涉及文件：**
+- 新建：`backend/app/evaluation/__init__.py`
+- 新建：`backend/app/evaluation/evaluator.py`
+- 新建：`backend/app/evaluation/metrics.py`
+- 新建：`backend/app/evaluation/llm_judge.py`
 
-- [ ] **Step 1: Write metrics**
+- [ ] **步骤 1：编写指标计算**
 
-Write `backend/app/evaluation/metrics.py`:
+写入 `backend/app/evaluation/metrics.py`：
 ```python
 def recall_at_k(relevant_ids: list[int], retrieved_ids: list[int], k: int) -> float:
     if not relevant_ids:
@@ -2439,16 +2370,15 @@ def mrr(relevant_ids: list[int], retrieved_ids: list[int]) -> float:
     return 0.0
 ```
 
-- [ ] **Step 2: Write LLM judge**
+- [ ] **步骤 2：编写 LLM 评判器**
 
-Write `backend/app/evaluation/llm_judge.py`:
+写入 `backend/app/evaluation/llm_judge.py`：
 ```python
 from app.core.interfaces import Message
 from app.llm.openai_llm import OpenAILLM
 
 
 async def judge_faithfulness(answer: str, context: str) -> float:
-    """Returns 0-1 score: is the answer fully supported by the context?"""
     llm = OpenAILLM()
     result = await llm.generate([
         Message(role="system", content="""You are an evaluation judge. Score the answer's faithfulness to the context.
@@ -2476,9 +2406,9 @@ Reply with only a number, like 0.92."""),
         return 0.0
 ```
 
-- [ ] **Step 3: Write evaluator**
+- [ ] **步骤 3：编写评估器**
 
-Write `backend/app/evaluation/evaluator.py`:
+写入 `backend/app/evaluation/evaluator.py`：
 ```python
 import json
 from app.db.sqlite import get_connection
@@ -2556,14 +2486,14 @@ class Evaluator:
 
 ---
 
-### Task 19: Wire up main.py and middleware
+### 任务 19：组装主应用与中间件
 
-**Files:**
-- Modify: `backend/app/main.py`
+**涉及文件：**
+- 修改：`backend/app/main.py`
 
-- [ ] **Step 1: Update main.py with all routers**
+- [ ] **步骤 1：更新 main.py 集成所有路由**
 
-Overwrite `backend/app/main.py`:
+覆写 `backend/app/main.py`：
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -2612,9 +2542,9 @@ def health():
     return {"status": "ok"}
 ```
 
-- [ ] **Step 2: Create admin seed user**
+- [ ] **步骤 2：添加管理员种子用户**
 
-Write `backend/app/db/seed.py` (append):
+追加到 `backend/app/db/seed.py`：
 ```python
 def seed_admin_user():
     conn = get_connection()
@@ -2629,32 +2559,32 @@ def seed_admin_user():
     conn.close()
 ```
 
-Update main.py lifespan to call `seed_admin_user()`.
+更新 main.py 的 lifespan 调用 `seed_admin_user()`。
 
-- [ ] **Step 3: Verify full startup**
+- [ ] **步骤 3：验证完整启动**
 
-Run: `cd backend && timeout 5 uvicorn app.main:app --port 8000 || true`
-Expected: Server starts, no import errors, DB tables created in `data/rag.db`
+执行：`cd backend && timeout 5 uvicorn app.main:app --port 8000 || true`
+预期结果：服务器启动，无导入错误，在 `data/rag.db` 中创建数据库表。
 
-- [ ] **Step 4: Smoke test API**
+- [ ] **步骤 4：冒烟测试 API**
 
-Run: `cd backend && uvicorn app.main:app --port 8000 &`
-Then: `curl -s http://localhost:8000/health`
-Expected: `{"status":"ok"}`
+执行：`cd backend && uvicorn app.main:app --port 8000 &`
+然后：`curl -s http://localhost:8000/health`
+预期输出：`{"status":"ok"}`
 
-Then: `curl -s -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin123"}'`
-Expected: returns token JSON
+然后：`curl -s -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin123"}'`
+预期输出：返回带 token 的 JSON
 
 ---
 
-### Task 20: Final integration test
+### 任务 20：最终集成测试
 
-**Files:**
-- Create: `backend/tests/test_integration.py`
+**涉及文件：**
+- 新建：`backend/tests/test_integration.py`
 
-- [ ] **Step 1: Write end-to-end test**
+- [ ] **步骤 1：编写端到端测试**
 
-Write `backend/tests/test_integration.py`:
+写入 `backend/tests/test_integration.py`：
 ```python
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -2665,13 +2595,11 @@ from app.main import app
 async def test_full_flow_login_create_kb_upload_ask():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # Login
         resp = await client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"})
         assert resp.status_code == 200
         token = resp.json()["data"]["token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        # Create KB
         resp = await client.post("/api/v1/knowledge-bases/", json={
             "name": "Test KB", "description": "Integration test", "kb_type": "employee",
             "chunk_strategy": "recursive", "chunk_size": 200, "chunk_overlap": 20,
@@ -2679,12 +2607,10 @@ async def test_full_flow_login_create_kb_upload_ask():
         assert resp.status_code == 200
         kb_id = resp.json()["data"]["id"]
 
-        # List KBs
         resp = await client.get("/api/v1/knowledge-bases/", headers=headers)
         assert resp.status_code == 200
         assert len(resp.json()["data"]) >= 1
 
-        # Upload document
         import io
         resp = await client.post(
             "/api/v1/documents/upload",
@@ -2695,15 +2621,12 @@ async def test_full_flow_login_create_kb_upload_ask():
         assert resp.status_code == 200
         doc_id = resp.json()["data"]["id"]
 
-        # Wait for processing
         import asyncio
         await asyncio.sleep(5)
 
-        # Check status
         resp = await client.get(f"/api/v1/documents/{doc_id}/status", headers=headers)
         assert resp.json()["data"]["status"] == "completed"
 
-        # Ask question
         resp = await client.post("/api/v1/chat/ask", json={
             "kb_id": kb_id, "query": "年假有多少天",
         }, headers=headers)
@@ -2713,7 +2636,6 @@ async def test_full_flow_login_create_kb_upload_ask():
         assert len(data["sources"]) > 0
         assert data["trace_id"] is not None
 
-        # Get stats
         resp = await client.get("/api/v1/admin/stats", headers=headers)
         assert resp.status_code == 200
         stats = resp.json()["data"]
@@ -2722,11 +2644,11 @@ async def test_full_flow_login_create_kb_upload_ask():
         assert stats["total_queries"] >= 1
 ```
 
-- [ ] **Step 2: Run integration test**
+- [ ] **步骤 2：运行集成测试**
 
-Run: `cd backend && python -m pytest tests/test_integration.py::test_full_flow_login_create_kb_upload_ask -v`
-Expected: PASS
+执行：`cd backend && python -m pytest tests/test_integration.py::test_full_flow_login_create_kb_upload_ask -v`
+预期结果：PASS
 
 ---
 
-*Plan version: v1.0 | Date: 2026-05-23*
+*计划版本: v1.1 | 日期: 2026-05-24*

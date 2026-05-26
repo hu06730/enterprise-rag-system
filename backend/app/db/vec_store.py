@@ -114,7 +114,8 @@ def search_similar(
         LIMIT ?
     """
 
-    params = [vec_json, kb_id] + access_levels + [vec_json, 2.0, limit]
+    max_distance = 2.0 if min_score <= 0 else min_score
+    params = [vec_json, kb_id] + access_levels + [vec_json, max_distance, limit]
     rows = conn.execute(query, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
