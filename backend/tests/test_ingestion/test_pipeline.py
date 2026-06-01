@@ -5,13 +5,20 @@ from pathlib import Path
 @pytest.mark.asyncio
 async def test_pipeline_processes_txt_and_stores_chunks():
     from app.db.sqlite import init_db, get_connection
-    from app.db.vec_store import init_vec
+    from app.db.vec_store import init_vec, delete_chunks_by_doc
     from app.ingestion.pipeline import run_ingestion
 
     init_db()
     init_vec()
 
     conn = get_connection()
+    # Clean up any existing test data
+    conn.execute("DELETE FROM chunks_meta WHERE doc_id=1")
+    conn.execute("DELETE FROM documents WHERE id=1")
+    conn.execute("DELETE FROM kb_config WHERE kb_id=1")
+    conn.execute("DELETE FROM knowledge_bases WHERE id=1")
+    conn.commit()
+
     conn.execute(
         "INSERT INTO knowledge_bases (id, name, kb_type) VALUES (1, 'test', 'employee')"
     )

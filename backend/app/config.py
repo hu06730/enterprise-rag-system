@@ -10,6 +10,7 @@ class Settings:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY") or ""
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL") or "text-embedding-3-small"
+    EMBEDDING_DIMENSIONS: int = int(os.getenv("EMBEDDING_DIMENSIONS") or "1536")
     LLM_MODEL: str = os.getenv("LLM_MODEL") or "gpt-4o-mini"
     DATABASE_URL: str = os.getenv("DATABASE_URL") or f"sqlite:///{BASE_DIR}/data/rag.db"
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR") or str(BASE_DIR / "data" / "uploads")

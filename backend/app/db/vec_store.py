@@ -2,6 +2,7 @@ import json
 import sqlite3
 import sqlite_vec
 from app.db.sqlite import get_connection
+from app.config import settings
 
 
 def _get_vec_connection() -> sqlite3.Connection:
@@ -20,9 +21,10 @@ def _get_vec_connection() -> sqlite3.Connection:
 def init_vec():
     conn = _get_vec_connection()
     try:
-        conn.execute("""
+        dim = settings.EMBEDDING_DIMENSIONS
+        conn.execute(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
-                embedding float[1536]
+                embedding float[{dim}]
             )
         """)
         conn.commit()
