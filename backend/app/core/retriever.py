@@ -1,6 +1,7 @@
 from app.core.interfaces import BaseRetriever, Chunk, RetrievalContext
 from app.db.vec_store import search_similar
 from app.db.sqlite import get_connection
+from app.core.bm25_cache import bm25_cache
 
 
 class VectorRetriever(BaseRetriever):
@@ -32,43 +33,29 @@ class VectorRetriever(BaseRetriever):
 
 class BM25Retriever(BaseRetriever):
     async def retrieve(self, query: str, ctx: RetrievalContext) -> list[Chunk]:
-        from rank_bm25 import BM25Okapi
         import jieba
 
-        conn = get_connection()
-        dept_clause = ""
-        params = [ctx.kb_id]
-        if ctx.user_departments:
-            placeholders = ",".join("?" for _ in ctx.user_departments)
-            dept_clause = f"AND (department IS NULL OR department IN ({placeholders}))"
-            params.extend(ctx.user_departments)
-
-        access_placeholders = ",".join("?" for _ in ctx.access_levels)
-        params.extend(ctx.access_levels)
-
-        rows = conn.execute(
-            f"SELECT id, doc_id, kb_id, chunk_index, title, text, department, access_level "
-            f"FROM chunks_meta WHERE kb_id=? {dept_clause} AND access_level IN ({access_placeholders})",
-            params,
-        ).fetchall()
-        conn.close()
-
-        if not rows:
+        # 从缓存获取索引（首次自动从 DB 构建并持久化，后续直接复用）
+        index = bm25_cache.get(ctx.kb_id)
+        if not index:
             return []
 
-        texts = [r["text"] for r in rows]
-        tokenized = [list(jieba.cut(t)) for t in texts]
-        bm25 = BM25Okapi(tokenized)
+        # 只需要对查询分词一次（不再对全部 chunk 分词）
         query_tokens = list(jieba.cut(query))
-        scores = bm25.get_scores(query_tokens)
+        scores = index.bm25.get_scores(query_tokens)
 
+        # 按权限过滤：从缓存的 chunk 列表中筛选符合权限的结果
         results = []
-        for i, r in enumerate(rows):
+        for i, chunk in enumerate(index.chunks):
+            if chunk["access_level"] not in ctx.access_levels:
+                continue
+            if ctx.user_departments and chunk["department"] and chunk["department"] not in ctx.user_departments:
+                continue
             results.append(Chunk(
-                id=r["id"], doc_id=r["doc_id"], kb_id=r["kb_id"],
-                chunk_index=r["chunk_index"], title=r["title"],
-                text=r["text"], department=r["department"],
-                access_level=r["access_level"],
+                id=chunk["id"], doc_id=chunk["doc_id"], kb_id=chunk["kb_id"],
+                chunk_index=chunk["chunk_index"], title=chunk["title"],
+                text=chunk["text"], department=chunk["department"],
+                access_level=chunk["access_level"],
                 score=float(scores[i]),
                 source="keyword",
             ))

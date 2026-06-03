@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.auth.permissions import get_current_user, require_role
 from app.db.sqlite import get_connection
+from app.core.bm25_cache import bm25_cache
 
 router = APIRouter(prefix="/api/v1/knowledge-bases", tags=["knowledge-bases"])
 
@@ -84,6 +85,7 @@ def update_kb(kb_id: int, req: KBCreate, user: dict = Depends(require_role("admi
 def delete_kb(kb_id: int, user: dict = Depends(require_role("admin"))):
     from app.db.vec_store import delete_chunks_by_kb
     delete_chunks_by_kb(kb_id)
+    bm25_cache.invalidate(kb_id)  # 清除该知识库的 BM25 索引
     conn = get_connection()
     conn.execute("DELETE FROM kb_config WHERE kb_id=?", (kb_id,))
     conn.execute("DELETE FROM documents WHERE kb_id=?", (kb_id,))

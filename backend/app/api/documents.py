@@ -4,6 +4,7 @@ from fastapi import APIRouter, UploadFile, File, Form, Depends, BackgroundTasks,
 from app.auth.permissions import get_current_user, require_role
 from app.db.sqlite import get_connection
 from app.config import settings
+from app.core.bm25_cache import bm25_cache
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
@@ -77,6 +78,9 @@ def delete_document(doc_id: int, user: dict = Depends(require_role("admin", "edi
     conn.commit()
     conn.close()
 
+    # 文档删除，重建该知识库的 BM25 索引
+    bm25_cache.rebuild(doc["kb_id"])
+
     if os.path.exists(doc["file_path"]):
         os.remove(doc["file_path"])
     return {"code": 0, "data": None, "message": "Deleted"}
@@ -97,6 +101,9 @@ async def reprocess(doc_id: int, background_tasks: BackgroundTasks, user: dict =
     conn.execute("UPDATE documents SET status='pending' WHERE id=?", (doc_id,))
     conn.commit()
     conn.close()
+
+    # 重建 BM25 索引（因为 chunk 被删除了，ingestion 完成后会再次重建）
+    bm25_cache.rebuild(doc["kb_id"])
 
     background_tasks.add_task(run_ingestion, doc_id)
     return {"code": 0, "data": {"id": doc_id, "status": "pending"}, "message": "Reprocessing started"}

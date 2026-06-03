@@ -4,6 +4,7 @@ from app.db.vec_store import insert_chunk_vec_and_meta
 from app.ingestion.parsers import get_parser
 from app.ingestion.splitter import get_splitter
 from app.ingestion.embedder import OpenAIEmbedder
+from app.core.bm25_cache import bm25_cache
 
 
 async def run_ingestion(doc_id: int):
@@ -56,6 +57,9 @@ async def run_ingestion(doc_id: int):
         conn.execute("UPDATE documents SET status='completed' WHERE id=?", (doc_id,))
         conn.commit()
         conn.close()
+
+        # 文档入库完成，重建该知识库的 BM25 索引
+        bm25_cache.rebuild(kb_id)
     except Exception as e:
         conn = get_connection()
         conn.execute("UPDATE documents SET status='failed' WHERE id=?", (doc_id,))

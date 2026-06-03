@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.sqlite import init_db
 from app.db.vec_store import init_vec
 from app.db.seed import seed_intent_rules, seed_admin_user
+from app.core.bm25_cache import bm25_cache
 from app.api.auth import router as auth_router
 from app.api.knowledge_bases import router as kb_router
 from app.api.documents import router as doc_router
@@ -19,6 +20,7 @@ async def lifespan(app: FastAPI):
     init_vec()
     seed_intent_rules()
     seed_admin_user()
+    bm25_cache.warm_up()  # 预热所有知识库的 BM25 索引
     yield
 
 
