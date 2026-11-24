@@ -1,6 +1,6 @@
 """一次性工具：抓取 Python 官方中文教程，转成纯文本语料放进 corpus/。
 
-用法（在 C:\\Users\\hc\\RAG企业知识库 下）：
+用法（在仓库根目录执行）：
     .venv\\Scripts\\python -m project.fetch_corpus
 """
 

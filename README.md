@@ -197,7 +197,7 @@ curl.exe http://127.0.0.1:8000/health
 | 现象 | 原因 | 解决 |
 |---|---|---|
 | `Fail connecting to milvus-standalone:19530` | Milvus 没启动，或 app 不在 `rag_default` 网络 | `docker ps` 确认 Milvus Up；`docker compose up -d` 让 app 重建并加入网络 |
-| 启动卡在下载模型 | `HF_CACHE` 没配 | 在 `.env` 写 `HF_CACHE=C:/Users/hc/.cache/huggingface`（正斜杠） |
+| 启动卡在下载模型 | `HF_CACHE` 没配 | 在 `.env` 写 `HF_CACHE=<你的用户目录>/.cache/huggingface`（如 `C:/Users/你的用户名/.cache/huggingface`，用正斜杠）（正斜杠） |
 | `bind: address already in use` | 8000 被旧容器占 | `docker ps` 找到并 `docker stop` |
 | `docker compose down -v` | ⚠️ 会删数据卷 | 只想停止服务请用 `docker compose down` |
 

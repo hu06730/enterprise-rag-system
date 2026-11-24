@@ -11,7 +11,7 @@
 【输入】eval_set.json：7 道可答题 + 3 道不可答题
 【输出】一张逐题表 + 三行汇总
 
-【用法】在 C:\\Users\\hc\\RAG企业知识库 目录下：
+【用法】在仓库根目录执行：
     .venv\\Scripts\\python -m project.eval               # 基线：稠密 + BM25 + RRF + Rerank
     .venv\\Scripts\\python -m project.eval --no-rerank   # 对照组：去掉 Rerank
 提示：每次运行会重新 ingest 一次（hash 主键 + upsert，幂等，不会重复），
