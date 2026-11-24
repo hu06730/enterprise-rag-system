@@ -1,0 +1,299 @@
+[
+  {
+    "id": 1,
+    "type": "heading",
+    "question": "用列表实现堆栈",
+    "answer": "用 append() 往栈顶加，用不带索引的 pop() 从栈顶取，最后添加的最先取出（后进先出）。",
+    "gold_snippets": [
+      "列表方法使得将列表作为栈来使用非常容易"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 2,
+    "type": "heading",
+    "question": "模块搜索路径是怎么确定的",
+    "answer": "先找内置模块（sys.builtin_module_names），找不到再到 sys.path 列出的目录里找 spam.py。",
+    "gold_snippets": [
+      "解释器首先会搜索具有该名称的内置模块"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 3,
+    "type": "heading",
+    "question": "预定义的清理操作是什么",
+    "answer": "某些对象在不再需要时会执行标准清理操作，且无论使用该对象的操作是否成功都会执行。",
+    "gold_snippets": [
+      "某些对象定义了不需要该对象时要执行的标准清理操作"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 4,
+    "type": "heading",
+    "question": "文件通配符用哪个模块",
+    "answer": "glob 模块，提供在目录中用通配符搜索并生成文件列表的函数。",
+    "gold_snippets": [
+      "glob 模块提供了一个在目录中使用通配符搜索创建文件列表的函数"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 5,
+    "type": "paraphrase",
+    "question": "想让函数的一部分参数变成可选，调用时少传几个，该怎么做",
+    "answer": "给参数指定默认值；调用时可以用比定义时更少的参数。",
+    "gold_snippets": [
+      "为参数指定默认值是非常有用的方式"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 6,
+    "type": "paraphrase",
+    "question": "怎么让某些参数只能按位置传、不能用关键字传",
+    "answer": "把它们标记为仅限位置参数，放在函数定义里 / 的前面。",
+    "gold_snippets": [
+      "特定形参可以标记为 仅限位置"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 7,
+    "type": "paraphrase",
+    "question": "怎么一次性遍历字典里的键和值",
+    "answer": "用 items() 方法，循环时同时取出 k 和 v。",
+    "gold_snippets": [
+      "当对字典执行循环时，可以使用 items() 方法同时提取键及其对应的值"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 8,
+    "type": "paraphrase",
+    "question": "想把圆周率打印成小数点后三位",
+    "answer": "用格式说明符控制小数位数，例如把 pi 舍入到小数点后三位。",
+    "gold_snippets": [
+      "下例将 pi 舍入到小数点后三位"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 9,
+    "type": "paraphrase",
+    "question": "try 里出错之后，无论如何都要执行的收尾代码该写在哪",
+    "answer": "写在 try 语句的 finally 子句里，它用于定义在所有情况下都必须执行的清理操作。",
+    "gold_snippets": [
+      "try 语句还有一个可选子句，用于定义在所有情况下都必须要执行的清理操作"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 10,
+    "type": "paraphrase",
+    "question": "子类想改掉父类的方法，同时又想复用父类里的同名逻辑，Python 支持吗",
+    "answer": "支持：派生类能覆盖基类的方法，类的方法也能调用基类中的同名方法。",
+    "gold_snippets": [
+      "派生的类能覆盖基类的方法、类的方法能调用基类中的同名方法"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 11,
+    "type": "multihop",
+    "question": "两个项目要用同一个库的不同版本，怎么让它们互不干扰",
+    "answer": "问题背景是版本冲突（A 要 1.0、B 要 2.0）；解决办法是用 venv 模块为每个项目创建独立的虚拟环境。",
+    "gold_snippets": [
+      "如果应用程序A需要特定模块的1.0版本但应用程序B需要2.0版本",
+      "用于创建和管理虚拟环境的模块是 venv"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 12,
+    "type": "multihop",
+    "question": "为什么脚本里的调试代码在被别的模块导入时不该执行",
+    "answer": "模块里的语句只在 import 第一次遇到模块名时执行；而在以脚本方式运行时会执行这些语句，所以要把只在直接运行时才该跑的部分放到 __main__ 保护里。",
+    "gold_snippets": [
+      "这些语句用于初始化模块，且仅在 import 语句 第一次 遇到模块名时执行",
+      "可以用以下方式运行 Python 模块"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 13,
+    "type": "multihop",
+    "question": "想知道两段代码哪个跑得更快，还想在文档注释里顺手写点测试，分别该用哪个标准库",
+    "answer": "计时用 timeit 模块（可立即回答相对性能问题）；文档里的测试用 doctest 模块（扫描模块并验证文档字符串中嵌入的测试）。",
+    "gold_snippets": [
+      "Python 提供了一种可以立即回答这些问题的测量工具",
+      "doctest 模块提供了一个工具，用于扫描模块并验证程序文档字符串中嵌入的测试"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 14,
+    "type": "multihop",
+    "question": "异常抛出来的时候，想额外附一句排查说明，有什么办法",
+    "answer": "用 raise 强制触发异常；异常被捕获后可以用 add_note(note) 方法把字符串加到异常的注释列表里。",
+    "gold_snippets": [
+      "raise 语句支持强制触发指定的异常",
+      "异常有一个 add_note(note) 方法接受一个字符串"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 15,
+    "type": "unanswerable_far",
+    "question": "Flask 和 Django 哪个更适合做微服务",
+    "answer": "知识库中无此信息",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "完全无关库外主题，检索分数应很低"
+  },
+  {
+    "id": 16,
+    "type": "unanswerable_far",
+    "question": "PyTorch 怎么在多张显卡上训练大模型",
+    "answer": "知识库中无此信息",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "库外主题（深度学习框架），测模型会不会拿自己知识瞎答"
+  },
+  {
+    "id": 17,
+    "type": "unanswerable_far",
+    "question": "2024 年最流行的 Python Web 框架是哪个",
+    "answer": "知识库中无此信息",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "时效性问题，教程里没有"
+  },
+  {
+    "id": 18,
+    "type": "unanswerable_near",
+    "question": "Python 3.12 是什么时候发布的",
+    "answer": "知识库中无此信息：教程提到过 python3.12 的用法，但没有发布时间",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "关键词在库里，缺日期 → 检索分数会很高，阈值拦不住"
+  },
+  {
+    "id": 19,
+    "type": "unanswerable_near",
+    "question": "pip 的默认超时时间是多少秒",
+    "answer": "知识库中无此信息：教程讲了 pip install/uninstall/freeze，但没提超时设置",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "同上：主题相关，缺具体参数"
+  },
+  {
+    "id": 20,
+    "type": "unanswerable_near",
+    "question": "PEP 8 是在哪一年发布的",
+    "answer": "知识库中无此信息：教程推荐了 PEP 8 风格指南，但没给发布年份",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "同上：内容相关，缺年份"
+  },
+  {
+    "id": 21,
+    "type": "heading",
+    "question": "finally 子句什么时候执行",
+    "answer": "不论 try 语句是否触发异常，最后都会执行 finally 子句；若异常未被 except 处理，finally 执行后会被重新触发。",
+    "gold_snippets": [
+      "不论 try 语句是否触发异常，都会执行 finally 子句"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 22,
+    "type": "heading",
+    "question": "logging 模块是做什么的",
+    "answer": "提供功能齐全且灵活的日志记录系统，日志消息可发送到文件或 sys.stderr。",
+    "gold_snippets": [
+      "logging 模块提供功能齐全且灵活的日志记录系统"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 23,
+    "type": "paraphrase",
+    "question": "打开文件写入之后不关闭，可能会出什么问题",
+    "answer": "即使程序正常退出，也可能导致 write() 的参数没有完全写入磁盘；应当使用 with 或显式调用 close()。",
+    "gold_snippets": [
+      "如果没有使用 with 关键字，则应调用 f.close() 关闭文件"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 24,
+    "type": "paraphrase",
+    "question": "怎么写一段说明，让别人在代码编辑器里悬停函数就能看到用法",
+    "answer": "写文档字符串（docstring）：函数内第一条语句是字符串时即为文档字符串，可用于自动生成文档。",
+    "gold_snippets": [
+      "利用文档字符串可以自动生成在线文档或打印版文档"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 25,
+    "type": "paraphrase",
+    "question": "列表推导式的写法结构是怎样的",
+    "answer": "方括号内是一个表达式，后面跟一个 for 子句，然后可以有零个或多个 for 或 if 子句。",
+    "gold_snippets": [
+      "列表推导式的方括号内包含以下内容：一个表达式，后面为一个 for 子句"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 26,
+    "type": "multihop",
+    "question": "包被 from xxx import * 导入时，怎么控制到底导出哪些子模块",
+    "answer": "需要在包的 __init__.py 里定义列表 __all__；它也可以只是一个空文件，此时不做特殊导出控制。",
+    "gold_snippets": [
+      "如果包的 __init__.py 代码定义了列表 __all__",
+      "在最简单的情况下，__init__.py 可以只是一个空文件"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 27,
+    "type": "multihop",
+    "question": "想把嵌套的字典存到文件里、以后还能读回来，除了 JSON 还有什么现成的模块",
+    "answer": "JSON 适合保存带层级结构的 Python 数据；若要处理表格型的逗号分隔值，还有 csv 模块可直接读写。",
+    "gold_snippets": [
+      "标准库模块 json 可以接受带有层级结构的 Python 数据",
+      "csv 模块支持以逗号分隔值格式直接读取和写入文件"
+    ],
+    "answerable": true
+  },
+  {
+    "id": 28,
+    "type": "unanswerable_far",
+    "question": "Kubernetes 怎么配置滚动更新策略",
+    "answer": "知识库中无此信息",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "库外主题（容器编排），测跨领域拒答"
+  },
+  {
+    "id": 29,
+    "type": "unanswerable_near",
+    "question": "Python 3.15 的正式发布日期是哪天",
+    "answer": "知识库中无此信息：文档标题里写了 Python 3.15.2，但没有发布日期",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "关键词在库里（文档标题），缺日期"
+  },
+  {
+    "id": 30,
+    "type": "unanswerable_near",
+    "question": "logging 模块默认的日志级别是什么",
+    "answer": "知识库中无此信息：讲了 logging 的用途和输出位置，但没写默认级别",
+    "gold_snippets": [],
+    "answerable": false,
+    "note": "主题相关，缺具体配置值"
+  }
+]

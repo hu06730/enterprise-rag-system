@@ -1,0 +1,19 @@
+# 不进构建上下文的东西：减小 docker build 传输量、避免把敏感/临时文件打进镜像
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.git/
+.gitignore
+*.egg-info/
+build/
+dist/
+
+# 评测中间产物（几十 MB，镜像里用不到）
+eval_rows*.json
+rows_k*.json
+faith_rows.json
+
+# 本地配置与日志
+.env
+*.log

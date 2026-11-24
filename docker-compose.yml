@@ -1,0 +1,44 @@
+# 只编排"应用"这一层；Milvus 用宿主机上已有的那套（数据在里面，不要动它）。
+#
+# 关键设计：app 不通过宿主机访问 Milvus，而是**加入 Milvus 所在的 docker 网络**，
+# 用服务名 `milvus-standalone` 直连。
+#   - 容器内的 localhost 是容器自己，连不到宿主机；
+#   - host.docker.internal 要绕宿主机网关，容易被防火墙/网关策略拦（实测失败）；
+#   - 同一 bridge 网络内，Docker 内置 DNS 会把服务名解析成容器 IP，最可靠。
+#
+# 为什么不需要 depends_on: service_healthy：
+#   我们的 app 在 lifespan 里有启动重试（8 次 × 5 秒），自己会等 Milvus 就绪。
+
+services:
+  app:
+    build: .
+    image: ragkb-api:0.1.0
+    container_name: ragkb-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env                      # OPENAI_API_KEY / OPENAI_BASE_URL
+    environment:
+      MILVUS_URI: http://milvus-standalone:19530   # ← 用服务名，走 docker 内部 DNS
+      REFUSE_THRESHOLD: "0.2"     # 检索层拒答阈值；0 表示关闭
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    networks:
+      - rag_net
+    volumes:
+      # 挂载宿主机已有的模型缓存（约 5.4GB），否则容器里要重新下载
+      - ${HF_CACHE:-~/.cache/huggingface}:/root/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      # 注意这里用 8000 的 /health，不是 Milvus 的 9091
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s          # 加载 3GB 模型要时间，给 120 秒宽限
+
+networks:
+  rag_net:
+    external: true
+    name: rag_default             # 复用 Milvus 那套 compose 创建的网络
+

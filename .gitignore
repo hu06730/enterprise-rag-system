@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 环境变量（真实值不要提交）
+.env
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 运行产物
+*.log
+eval_out/
+*.tmp
+
+# 评测中间产物（可随时用命令重新生成，不进仓库）
+eval_rows*.json
+rows_k*.json
+faith_rows.json
+reports/
