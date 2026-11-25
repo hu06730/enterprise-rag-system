@@ -263,6 +263,10 @@ python -m ragkb.mcp_server        # stdio 传输，前台常驻（等待客户�
 | 工具 | `search_knowledge_base(question: str, top_k: int = 5)` |
 | 返回 | `answer` / `citations` / `confidence` / `refused` / `refused_by` |
 
+![MCP Inspector 调用示例：工具发现 + 结构化返回](assets/mcp-inspector.png)
+
+> 上图：官方 MCP Inspector 连上本例 server，调用 `search_knowledge_base` 后返回的答案与 5 条引用（含 chunk_index / rerank 分数 / 片段锚点）。
+
 **字段约定**（给调用方决策用）：
 
 | 字段 | 含义 |
