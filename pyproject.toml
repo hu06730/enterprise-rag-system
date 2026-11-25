@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ragkb"
 version = "0.1.0"
-description = "企业知识库 RAG 问答系统：混合检索 + 重排 + 可量化评估"
+description = "Grounded RAG：可溯源的企业知识库问答（混合检索 + 重排 + 量化评估 + MCP 工具化）"
 requires-python = ">=3.13"
 readme = "README.md"
 license = { text = "MIT" }
@@ -32,3 +32,6 @@ include = ["ragkb*"]
 
 [tool.setuptools.package-data]
 ragkb = ["corpus/*.txt", "*.json"]
+
+[project.urls]
+Homepage = "https://github.com/hu06730/grounded-rag"

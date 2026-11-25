@@ -1,3 +1,5 @@
+# Grounded RAG 架构说明
+
 # 入库流（幂等）
 10 个 txt
  → TextParser.load            List[Document]
