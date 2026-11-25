@@ -259,6 +259,8 @@ curl.exe http://127.0.0.1:8000/health
 
 ## 8. 语料来源与许可
 
+本项目代码采用 **MIT License**（见 `LICENSE`）。
+
 `ragkb/corpus/` 下的 10 个文本文件抓取自 **Python 官方中文教程**（<https://docs.python.org/zh-cn/3/tutorial/>），
 用于构造可复现的检索评测语料，非本项目原创内容。
 
