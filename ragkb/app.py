@@ -29,6 +29,7 @@ from pathlib import Path
 
 from ragkb.config.settings import ENCODING
 from ragkb.pipeline.rag_pipeline import REFUSAL_TEXT
+from ragkb.service import answer_structured
 
 logger = logging.getLogger("ragkb.app")
 # 为什么必须自己配 handler：Python root logger 默认级别是 WARNING，
@@ -54,18 +55,20 @@ class QueryRequest(BaseModel):
     top_k: int = Field(5, ge=1, le=20, description="返回多少条证据片段")
 
 
-class Source(BaseModel):
-    """一条来源片段。可溯源是这个项目的卖点，所以必须返回。"""
+class Citation(BaseModel):
+    """一条引用片段。给 Agent 用：它能据此判断"答案有没有证据支持"。"""
     source: str
     chunk_index: int | None = None
     score: float | None = None
+    snippet: str = Field(..., description="原文片段前 80 字，可回原文核对")
 
 
 class QueryResponse(BaseModel):
     answer: str
     refused: bool          # 是否走了拒答（调用方可据此区分"答了"和"没资料"）
     refused_by: str | None = None  # "retrieval" | "generation" | None
-    sources: list[Source]
+    citations: list[Citation]
+    confidence: float | None = None  # sigmoid(最高 rerank 分)；未开重排时为 None
 
 
 class IngestRequest(BaseModel):
@@ -168,35 +171,19 @@ def health() -> dict[str, Any]:
 
 @app.post("/query", response_model=QueryResponse)
 def query(req: QueryRequest) -> QueryResponse:
-    """问答：返回答案 + 来源片段 + 是否拒答。"""
-    pipeline = app.state.pipeline
+    """问答：返回答案 + 引用片段 + 置信度 + 拒答来源。
+
+    业务逻辑全部在 ragkb/service.py（HTTP 与 MCP 共用），这里只做 HTTP 包装。
+    """
     try:
-        answer_text, docs, refused = pipeline.answer(req.question, top_k=req.top_k)
+        result = answer_structured(app.state.pipeline, req.question, req.top_k)
     except Exception as exc:                       # 检索/生成失败 → 503，不吐 500 堆栈
         raise HTTPException(status_code=503, detail=f"检索或生成失败: {exc}") from exc
 
-    refused_by = None
-    if refused:
-        refused_by = "retrieval"  # 检索层分数不够，没调 LLM
-    elif answer_text.strip().startswith("根据现有资料无法回答"):
-        refused_by = "generation"  # 调了 LLM，但模型自己说资料不足
-
-
-    sources = [
-        Source(
-            source=Path(str(d.metadata.get("source", "unknown"))).name,
-            chunk_index=d.metadata.get("chunk_index"),
-            # 重排分数优先；没开重排时退回 Milvus 的相似度
-            score=d.metadata.get("rerank_score", d.metadata.get("score")),
-        )
-        for d in docs
-    ]
-    return QueryResponse(
-        answer=answer_text,
-        refused=refused_by is not None,
-        refused_by=refused_by,
-        sources=sources if refused_by != "retrieval" else [],
-    )
+    # 检索层拒答时没有可用证据，citations 置空（避免调用方误用无关片段）
+    if result["refused_by"] == "retrieval":
+        result["citations"] = []
+    return QueryResponse(**result)
 
 
 @app.post("/ingest", response_model=IngestResponse, status_code=202)

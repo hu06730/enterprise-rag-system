@@ -58,6 +58,8 @@ python -m pytest ragkb/tests -q  # 34 passed
 | `retrievers/` | BM25 索引、RRF 融合、重排、查询改写 | `BaseReranker` |
 | `generators/` | Prompt → 回答 | `BaseGenerator` |
 | `pipeline/` | 编排 `ingest` / `retrieve` / `query` | 以上全部（构造注入） |
+| `service.py` | 结构化结果整形（citations / confidence / refused_by），HTTP 与 MCP 共用 | `pipeline` |
+| `mcp_server.py` | MCP server：把检索暴露为 Agent 可调用的工具 | `service.py` |
 
 ## 4. 关键技术决策
 - 抽象接口 + 依赖注入 → Pipeline 可脱离 Milvus/LLM 单测（34 个测试，2 秒跑完）
@@ -246,6 +248,35 @@ curl.exe http://127.0.0.1:8000/health
 | 启动卡在下载模型 | `HF_CACHE` 没配 | 在 `.env` 写 `HF_CACHE=<你的用户目录>/.cache/huggingface`（如 `C:/Users/你的用户名/.cache/huggingface`，用正斜杠）（正斜杠） |
 | `bind: address already in use` | 8000 被旧容器占 | `docker ps` 找到并 `docker stop` |
 | `docker compose down -v` | ⚠️ 会删数据卷 | 只想停止服务请用 `docker compose down` |
+
+### 6.9 MCP 接口（供 Agent 调用）
+
+把知识库封装成 MCP（Model Context Protocol）工具：任何支持 MCP 的客户端（Claude Desktop / Cursor / 自研 Agent）都能零适配接入，不必为每个客户端写一遍适配代码。
+
+```powershell
+python -m ragkb.mcp_server        # stdio 传输，前台常驻（等待客户端连接）
+```
+
+| 项 | 说明 |
+|---|---|
+| 传输 | **stdio**（stdout 是协议通道，本进程内不得 `print`，日志一律走 stderr） |
+| 工具 | `search_knowledge_base(question: str, top_k: int = 5)` |
+| 返回 | `answer` / `citations` / `confidence` / `refused` / `refused_by` |
+
+**字段约定**（给调用方决策用）：
+
+| 字段 | 含义 |
+|---|---|
+| `citations[].snippet` | 该 chunk 的**前 80 字**，作用是**定位锚点**；完整证据请看原 chunk |
+| `confidence` | `sigmoid(最高 rerank 分)`；未开重排时为 `null`（不与 rrf 分数混用，量纲不同） |
+| `refused_by` | `retrieval` = 检索层拦下（未调 LLM、零成本）；`generation` = 模型自判资料不足 |
+
+**两个易踩的坑**：
+
+1. 宿主机运行 MCP server 时必须有 `MILVUS_DB_NAME=ragkb`（与 compose 中 app 一致）。若用默认的 `rag_implement`，会连到一个**空库**——**空库不报错，只表现为全部拒答**（`confidence: null` + `citations: []` 就是典型信号）。
+2. 全栈 compose 默认不对外发布 19530；宿主机上的进程要直连 Milvus 时，需给 `milvus-standalone` 加 `ports: "19530:19530"`（本仓库已加）。
+
+**边界**：本项目只提供 **server**（能力的出口）。Agent 侧的自主决策（何时调用、调用几次、失败如何重试、如何记忆）不在本项目范围内，属于下一个项目。
 
 ## 7. 已知局限
 - 语料仅 345 chunk（企业通常 10 万级）

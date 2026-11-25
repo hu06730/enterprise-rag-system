@@ -1,4 +1,9 @@
+import logging
+
 import re
+
+
+logger = logging.getLogger(__name__)
 
 
 class QueryRewriter:
@@ -57,7 +62,7 @@ class QueryRewriter:
             results = self.generator.generate(REWRITE_PROMPT)
             return self._parse(results,query,n) or [query]
         except Exception as e:
-            print(f"[Warning] 查询改写失败，回退原问题: {e}")
+            logger.warning("查询改写失败，回退原问题: %s", e)
             return [query]
 
 

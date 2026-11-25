@@ -7,6 +7,8 @@
 不连 Milvus、不调 LLM、不加载 BGE 重排模型，整个文件 1 秒内跑完。
 """
 
+import logging
+
 from ragkb.interfaces.base_reranker import BaseReranker
 from ragkb.pipeline.rag_pipeline import RAGPipeline
 from ragkb.tests.fakes import (
@@ -73,17 +75,20 @@ def test_rerank_success():
     assert answer == "假答案"
 
 
-def test_rerank_fallback(capsys):
+def test_rerank_fallback(caplog):
     generator = RecordingGenerator()
     pipeline = build_pipeline(ErrorReranker(), generator)
 
     # 断言 1：重排抛异常了，但整条链路不崩，照常返回答案
     #          —— 这就是「降级」的全部意义
-    answer = pipeline.query("测试问题", top_k=2)
+    # 注意：降级告警从 print 改成了 logging（MCP 的 stdio 模式下 print 会污染协议），
+    #       所以这里用 caplog 捕获，而不是 capsys。
+    with caplog.at_level(logging.WARNING, logger="ragkb.pipeline.rag_pipeline"):
+        answer = pipeline.query("测试问题", top_k=2)
     assert answer == "假答案"
 
-    # 断言 2：确实走进了 except 分支（打了 Warning），不是碰巧没调用重排
-    assert "重排失败" in capsys.readouterr().out
+    # 断言 2：确实走进了 except 分支（记了 Warning），不是碰巧没调用重排
+    assert "重排失败" in caplog.text
 
     # 断言 3：降级后用的是 RRF 的候选，prompt 不是空的
     prompt = generator.last_prompt

@@ -51,7 +51,7 @@ def test_health_ok():
     assert resp.json()["status"] == "ok"
 
 
-def test_query_returns_answer_and_sources():
+def test_query_returns_answer_and_citations():
     with make_client(FakePipeline()) as client:
         resp = client.post("/query", json={"question": "用列表实现堆栈", "top_k": 2})
 
@@ -59,10 +59,10 @@ def test_query_returns_answer_and_sources():
     body = resp.json()
     assert body["refused"] is False
     assert body["answer"] == "答案：用列表实现堆栈"
-    assert len(body["sources"]) == 2
+    assert len(body["citations"]) == 2
     # 可溯源：必须带 source 字段
-    assert body["sources"][0]["source"].endswith(".txt")
-    assert body["sources"][0]["chunk_index"] == 3
+    assert body["citations"][0]["source"].endswith(".txt")
+    assert body["citations"][0]["chunk_index"] == 3
 
 
 def test_query_refused_when_no_context():
@@ -73,7 +73,7 @@ def test_query_refused_when_no_context():
     body = resp.json()
     assert body["refused"] is True
     assert body["answer"] == REFUSAL_TEXT
-    assert body["sources"] == []
+    assert body["citations"] == []
 
 
 def test_query_rejects_empty_question():

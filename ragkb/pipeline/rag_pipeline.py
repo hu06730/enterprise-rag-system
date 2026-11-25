@@ -1,3 +1,4 @@
+import logging
 import math
 
 from langchain_core.documents import Document
@@ -15,6 +16,8 @@ from ragkb.retrievers.bm25_retriever import BM25Retriever
 
 from ragkb.retrievers.rrf_fusion import rrf_fuse,rrf_fuse_many
 from ragkb.retrievers.query_rewriter import QueryRewriter
+
+logger = logging.getLogger(__name__)
 
 # 拒答时的固定回复：CLI 和 HTTP 接口共用同一个字符串，便于调用方判断
 REFUSAL_TEXT = "根据现有资料无法回答。"
@@ -84,7 +87,7 @@ class RAGPipeline:
             else:
                 final_docs = fused_docs[:top_k]
         except Exception as e:
-            print(f"[Warning] 重排失败，降级使用 RRF 结果: {e}")
+            logger.warning("重排失败，降级使用 RRF 结果: %s", e)
             final_docs = fused_docs[:top_k]
 
         return final_docs
@@ -125,7 +128,7 @@ class RAGPipeline:
             else:
                 final_docs = fused_docs[:top_k]
         except Exception as e:
-            print(f"[Warning] 重排失败，降级使用 RRF 结果: {e}")
+            logger.warning("重排失败，降级使用 RRF 结果: %s", e)
             final_docs = fused_docs[:top_k]
 
         return final_docs

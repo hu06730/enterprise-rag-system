@@ -51,6 +51,10 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+    # 发布到宿主机：本机的 MCP server / 本地脚本需要直连 19530
+    # （容器内的 app 走服务名，不受影响）
+    ports:
+      - "19530:19530"
     volumes:
       - milvus_data:/var/lib/milvus
     healthcheck:
