@@ -32,3 +32,6 @@ eval_rows*.json
 rows_k*.json
 faith_rows.json
 reports/
+
+#项目问答
+docs/interview_qa.md

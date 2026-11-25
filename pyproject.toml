@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "企业知识库 RAG 问答系统：混合检索 + 重排 + 可量化评估"
 requires-python = ">=3.13"
 readme = "README.md"
+license = { text = "MIT" }
 # 依赖的真实来源是 requirements.txt，这里只声明最小集合
 dependencies = [
     "langchain==1.4.7",

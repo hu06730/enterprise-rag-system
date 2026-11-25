@@ -1,5 +1,47 @@
 # 企业知识库 RAG 问答系统
 
+**把非结构化文档变成可溯源的问答系统** —— 每个答案都标注来源片段；检索不到证据时明确拒答，而不是硬编。
+
+> **技术栈**：Python 3.13 · LangChain · Milvus · BGE-M3 · BGE-Reranker · FastAPI · Docker
+>
+> **实测**（30 题分层金标 / 345 chunk）：HitRate@5 **0.952** · Recall@5 **0.857** · 拒答阈值 τ=0.2 零误杀 · **34 个测试 2 秒跑完** · 镜像 **2.75 GB**
+
+## 快速开始（TL;DR）
+
+### 方式一：Docker 一条命令（自带 Milvus）
+
+```powershell
+cp .env.example .env                                  # 填入 OPENAI_API_KEY / OPENAI_BASE_URL
+docker compose -f docker-compose.full.yml up -d       # app + etcd + minio + milvus
+curl http://127.0.0.1:8000/health                     # {"status":"ok","chunks":345}
+```
+
+首次启动约 4~5 分钟（加载模型 + 自动入库 345 条），之后重启约 1 分钟。接口文档：<http://127.0.0.1:8000/docs>
+
+### 方式二：只用容器跑 Milvus，Python 在本机跑
+
+```powershell
+cp .env.example .env
+docker compose -f docker-compose.full.yml up -d etcd minio milvus-standalone
+pip install -r requirements.txt
+python -m ragkb.main --ingest    # 首次入库（约 1~3 分钟）
+python -m ragkb.main             # CLI 问答
+python -m pytest ragkb/tests -q  # 34 passed
+```
+
+## 效果速览
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| HitRate@5 | **0.952** | 至少命中 1 个证据片段的题占比（21 道可答题中 20 道） |
+| Recall@5（macro，标准） | **0.857** | 每题先算命中比例、再对题目平均 |
+| Recall@5（micro，辅助） | 0.778 | 片段池口径：21/27 个 gold 片段 |
+| 检索层拒答 | τ=0.2：误杀 0、拦下 8/9 不可答 | 省 8 次 LLM 调用，拒答精确率 1.0 |
+| 忠实度（10 题抽样） | 引用有效 10/10、强事实覆盖 1.000 | 不依赖 RAGAS 的轻量自检 |
+| 工程 | 34 个测试 / 2 秒、镜像 2.75 GB | 测试全程不连 Milvus、不调 LLM |
+
+> 完整的因子实验（单/多查询 × 有/无重排，各跑 3 次）与 k 曲线见 [eval_log.md](eval_log.md)。
+
 ## 1. 解决什么问题
   把非结构化文档变成可溯源的问答系统，每个答案都标出来源片段
 
@@ -18,7 +60,7 @@
 | `pipeline/` | 编排 `ingest` / `retrieve` / `query` | 以上全部（构造注入） |
 
 ## 4. 关键技术决策
-- 抽象接口 + 依赖注入 → Pipeline 可脱离 Milvus/LLM 单测（16 个测试，3 秒跑完）
+- 抽象接口 + 依赖注入 → Pipeline 可脱离 Milvus/LLM 单测（34 个测试，2 秒跑完）
 - 混合检索 + RRF → 稠密管语义、BM25 管精确编号（函数名 timeit、参数名 __all__、版本号 3.15）
 - Cross-Encoder 重排 → HitRate@1 从 0.429 提到 0.524（+2 题），且压缩方差
 - Multi-Query → 净收益 0，默认关闭（附实验表）
