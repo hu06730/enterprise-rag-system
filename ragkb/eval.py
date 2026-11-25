@@ -218,10 +218,17 @@ def summarize(rows: list[dict]) -> dict:
     recall = round(n_hit / n_answerable, 3) if n_answerable else 0.0
 
     # Recall@1：第 1 名就命中。比 Recall@5 更难，天花板没到 1.0 时它最能区分好坏
-    # 严格 Recall@k：命中的 gold 片段总数 / gold 片段总数（可答题）
+    # 两条 Recall 口径，含义不同，都要报：
+    #   macro（标准 IR 定义）：先算每题的比例，再对题目取平均 —— 每题等权
+    #   micro（片段池）：命中片段总数 / 片段总数 —— 金标多的题权重大
     gold_found = sum(row.get("gold_found", 0) for row in answerable)
     gold_total = sum(row.get("gold_total", 0) for row in answerable)
-    recall_strict = round(gold_found / gold_total, 3) if gold_total else 0.0
+    recall_micro = round(gold_found / gold_total, 3) if gold_total else 0.0
+
+    per_q = [row["gold_found"] / row["gold_total"]
+             for row in answerable if row.get("gold_total")]
+    recall_macro = round(sum(per_q) / len(per_q), 3) if per_q else 0.0
+    recall_strict = recall_macro          # 主口径改为标准的 macro
 
     n_hit_at_1 = sum(1 for row in answerable if row["rank"] == 1)
     recall_at_1 = round(n_hit_at_1 / n_answerable, 3) if n_answerable else 0.0
@@ -256,6 +263,7 @@ def summarize(rows: list[dict]) -> dict:
         "recall": recall,
         "recall_at_1": recall_at_1,
         "recall_strict": recall_strict,
+        "recall_micro": recall_micro,
         "gold_found": gold_found,
         "gold_total": gold_total,
         "mrr": mrr,
@@ -290,8 +298,9 @@ def print_report(rows: list[dict], summary: dict, top_k: int = TOP_K) -> None:
     print("-" * 78)
     print(f"可答题 {summary['n_answerable']} 题：命中 {summary['n_hit']} 题")
     print(f"HitRate@{top_k} = {summary['recall']:.3f}（题级：至少命中 1 个 gold 的题占比）")
-    print(f"Recall@{top_k}  = {summary['recall_strict']:.3f}"
-          f"（严格：gold 片段覆盖 {summary['gold_found']}/{summary['gold_total']}）")
+    print(f"Recall@{top_k}  = {summary['recall_strict']:.3f}（标准 macro：每题比例再平均）")
+    print(f"Recall@{top_k}(micro) = {summary['recall_micro']:.3f}"
+          f"（片段池：{summary['gold_found']}/{summary['gold_total']}）")
     print(f"Recall@1 = {summary['recall_at_1']:.3f}    MRR = {summary['mrr']:.3f}")
     print()
     print("按题型分组：")

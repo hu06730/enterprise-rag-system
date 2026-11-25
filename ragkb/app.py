@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
@@ -30,6 +31,15 @@ from ragkb.config.settings import ENCODING
 from ragkb.pipeline.rag_pipeline import REFUSAL_TEXT
 
 logger = logging.getLogger("ragkb.app")
+# 为什么必须自己配 handler：Python root logger 默认级别是 WARNING，
+# 不配的话 logger.info() 会被静默丢弃 —— 表现为"启动时卡住、没日志"，
+# 实际是正在入库。这里显式指定 INFO 级别，并把日志格式对齐 uvicorn。
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 # 启动时如果 Milvus 还没就绪（docker compose 常见：app 比 milvus 快），
 # 重试这么多次，每次间隔这么多秒。全部失败才让服务退出（fail fast）。
@@ -114,9 +124,33 @@ async def lifespan(app: FastAPI):
         app.state.pipeline = pipeline
         app.state.chunk_count = len(chunks)
 
+        # 一键部署用：AUTO_INGEST_ON_START=1 时启动即入库（空库首次约 1~3 分钟）
+        # 默认关闭，避免每次重启都重算 embedding（虽然幂等，但白等）
+        if os.getenv("AUTO_INGEST_ON_START") == "1":
+            existing = _collection_count(pipeline.vector_store)
+            if existing == 0:
+                logger.info("库为空，开始入库（约 1~3 分钟）…")
+                n = pipeline.ingest(corpus_files(), ENCODING)
+                logger.info("自动入库完成：%d 条", n)
+            else:
+                logger.info("库中已有 %s 条，跳过入库（重启不再白等）", existing)
+
     app.state.jobs = {}          # 入库任务表：job_id -> 状态
     yield
     app.state.pipeline = None    # 关闭时释放引用
+
+
+def _collection_count(store) -> int | None:
+    """读集合里的条数；拿不到就返回 None（宁可多入库一次，也不要静默跳过）。"""
+    client = getattr(store, "client", None)
+    name = getattr(store, "collection_name", None)
+    if client is None or name is None:
+        return None
+    try:
+        stats = client.get_collection_stats(name)
+        return int(stats.get("row_count", 0))
+    except Exception:
+        return None
 
 
 app = FastAPI(title="RAG 企业知识库服务", version="0.1.0", lifespan=lifespan)

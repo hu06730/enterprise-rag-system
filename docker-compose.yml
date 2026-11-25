@@ -31,7 +31,9 @@ services:
     restart: unless-stopped
     healthcheck:
       # 注意这里用 8000 的 /health，不是 Milvus 的 9091
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # 不能用 curl：python:3.13-slim 镜像里没有 curl，探针会永远失败。
+      # 用镜像里一定有的 python 做 HTTP 检查。
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
